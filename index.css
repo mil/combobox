@@ -22,7 +22,6 @@
 }
 
 .combobox .label,
-.combobox .group-label,
 .combobox .option {
   cursor: pointer;
   overflow: hidden;
@@ -37,10 +36,6 @@
 
 .combobox .option.selectable {
   display: list-item;
-}
-
-.combobox .group.empty {
-  display: none;
 }
 
 .combobox .inner {

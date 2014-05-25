@@ -1,30 +1,33 @@
-var Emitter = require('emitter')
-  , domify = require('domify')
-  , classes = require('classes')
-  , query = require('query')
-  , events = require('event')
-  , indexOf = require('indexof')
-  , keyname = require('keyname')
-  , scrolltop = require('scrolltop')
-  , bind = require('bind');
+var template = require('./template');
+var scrolltop = require('scrolltop');
+var Emitter = require('emitter');
+var classes = require('classes');
+var indexOf = require('indexof');
+var keyname = require('keyname');
+var prevent = require('prevent');
+var domify = require('domify');
+var events = require('events');
+var query = require('query');
+var text = require('text');
   
 /**
  * Select constructor
  */
 
 function Combo (options) {
-  if (!(this instanceof Combo))
-    return new Combo(options);
+  if (!(this instanceof Combo)) return new Combo(options);
   
   this.options = {};
   this.selectable = [];
+  
   this.closed = true;
-  this.value = undefined;
-  this._group = undefined;
+  this.value = null;
+  
   this.placeholder = options.placeholder || '';
   this.searchable = options.search;
-  this.binding = binding(this);
+  
   this.render();
+  this.bind();
 }
 
 /**
@@ -37,20 +40,23 @@ Emitter(Combo.prototype);
  * Render html
  */
 
-Combo.prototype.render = function () {
-  var template = require('./templates/combo');
-  this.el = domify(template)[0];
+Combo.prototype.render = function () {  
+  this.el = domify(template);
+  
   this.list = query('.options', this.el);
   this.input = query('.search', this.el);
+  this.label = query('.label', this.el);
+  
+  this.events = events(this.el, this);
+  this.winEvents = events(window, this);
   this.classes = classes(this.el);
   
-  this.label = query('.label', this.el);
-  this.label.innerHTML = this.placeholder;
+  text(this.label, this.placeholder);
   
-  if (this.searchable)
+  // search enabled
+  if (this.searchable) {
     this.addClass('searchable');
-  
-  return this.bind();
+  }
 };
 
 /**
@@ -58,14 +64,15 @@ Combo.prototype.render = function () {
  */
 
 Combo.prototype.bind = function () {
-  var bind = this.binding;
-  events.bind(this.el, 'keypress', bind('onkeypress'));
-  events.bind(this.el, 'keydown', bind('onkeydown'));
-  events.bind(this.el, 'mousedown', stopPropagation);
-  events.bind(this.el, 'mouseup', stopPropagation);
-  events.bind(this.input, 'keyup', bind('onkeyup'));
-  events.bind(this.input, 'change', bind('onkeyup'));
-  events.bind(this.label, 'mousedown', bind('toggle'));
+  this.events.bind('mousedown .label', 'toggle');
+  this.events.bind('change .search', 'onkeyup');
+  this.events.bind('mousedown', 'stop');
+  this.events.bind('mouseup', 'stop');
+  this.events.bind('mouseover .option');
+  this.events.bind('mouseup .option');
+  this.events.bind('keyup .search');
+  this.events.bind('keypress');
+  this.events.bind('keydown');
   return this;
 };
 
@@ -74,14 +81,7 @@ Combo.prototype.bind = function () {
  */
 
 Combo.prototype.unbind = function () {
-  var bind = this.binding;
-  events.unbind(this.el, 'keypress', bind('onkeypress'));
-  events.unbind(this.el, 'keydown', bind('onkeydown'));
-  events.unbind(this.el, 'mousedown', stopPropagation);
-  events.unbind(this.el, 'mouseup', stopPropagation);
-  events.unbind(this.input, 'keyup', bind('onkeyup'));
-  events.unbind(this.input, 'change', bind('onkeyup'));
-  events.unbind(this.label, 'mousedown', bind('toggle'));
+  this.events.unbind();
   return this.unbindOutside();
 };
 
@@ -90,11 +90,10 @@ Combo.prototype.unbind = function () {
  */
 
 Combo.prototype.bindOutside = function () {
-  var bind = this.binding;
-  events.bind(window, 'mousedown', bind('close'));
-  events.bind(window, 'mouseup', bind('close'));
-  events.bind(window, 'scroll', bind('reposition'));
-  events.bind(window, 'resize', bind('reposition'));
+  this.winEvents.bind('scroll', 'reposition');
+  this.winEvents.bind('resize', 'reposition');
+  this.winEvents.bind('mousedown', 'close');
+  this.winEvents.bind('mouseup', 'close');
   return this;
 };
 
@@ -103,71 +102,49 @@ Combo.prototype.bindOutside = function () {
  */
 
 Combo.prototype.unbindOutside = function () {
-  var bind = this.binding;
-  events.unbind(window, 'mousedown', bind('close'));
-  events.unbind(window, 'mouseup', bind('close'));
-  events.unbind(window, 'scroll', bind('reposition'));
-  events.unbind(window, 'resize', bind('reposition'));
+  this.winEvents.unbind();
   return this;
 };
 
 /**
- * Add option
+ * Stop propagation
  */
 
-Combo.prototype.add = function (value, text, selected) {
-  var template = require('./templates/option');
-  var el = domify(template)[0];
-  var list = this._group || this.list;
-  
-  el.innerHTML = text;
-  this.options[value] = el;
-  this.selectable.push('' + value);
-  list.appendChild(el);
-  
-  var select = bind(this, 'select', value);
-  var setFocus = bind(this, 'setFocus', value);
-  events.bind(el, 'mouseup', select);
-  events.bind(el, 'mouseover', setFocus);
-  
-  if (!(this.placeholder || this.value) || selected) {
-    this.select(value);
-  }
-  
-  return this.emit('option', value, text);
-};
-
-/** 
- * Remove option
- */
-
-Combo.prototype.remove = function (value) {
-  var option = this.options[value];
-  this.el.removeChild(option);
-  return this.emit('remove', value);
+Combo.prototype.stop = function () {
+  this.clicked = true;
 };
 
 /**
- * Add optiongroup
+ * Handle `mouseup` events
  */
 
-Combo.prototype.group = function (name) {
-  var template = require('./templates/group');
-  var el = domify(template)[0];
-  var label = query('.group-label', el);
-  
-  label.innerHTML = name;
-  this._group = query('.options', el);
-  this.list.appendChild(el);
-  
-  return this.emit('group', name);
+Combo.prototype.onmouseup = function (e) {
+  var el = e.delegateTarget;
+  var val = el.getAttribute('data-value');
+  this.select(val);
 };
 
 /**
- * React to keypress event when closed
+ * Handle `mouseover` events
  */
 
-var isLetter = /\w/;
+Combo.prototype.onmouseover = function (e) {
+  var el = e.delegateTarget;
+  var val = el.getAttribute('data-value');
+  this.highlight(val);
+};
+
+/**
+ * Handle `keyup` events
+ */
+
+Combo.prototype.onkeyup = function () {
+  this.filter(this.input.value);
+};
+
+/**
+ * Handle `keypress` events
+ */
 
 Combo.prototype.onkeypress = function (e) {
   if (!this.closed) return;
@@ -175,21 +152,22 @@ Combo.prototype.onkeypress = function (e) {
   var key = e.keyCode
   var c = String.fromCharCode(key);
     
-  if (!isLetter.test(c)) return;
+  if (!/\w/.test(c)) return;
   
-  preventDefault(e);
   this.input.value = c;
   this.open();
   this.filter(c);
+  
+  prevent(e);
 };
 
 /**
- * React to keydown event
+ * Handle `keydown` events
  */
 
 Combo.prototype.onkeydown = function (e) {
   var key = e.keyCode;
-  var current = this.inFocus || this.value;
+  var current = this.highlighted || this.value;
   
   switch (keyname(key)) {
     case 'tab':
@@ -197,7 +175,7 @@ Combo.prototype.onkeydown = function (e) {
       this.close();
       break;
     case 'enter':
-      preventDefault(e);
+      prevent(e);
       this.select(current);
       break;
     case 'left':
@@ -205,38 +183,67 @@ Combo.prototype.onkeydown = function (e) {
       this.open();
       break;
     case 'up':
-      preventDefault(e);
+      prevent(e);
       this.navigate(-1);
       break;
     case 'down':
-      preventDefault(e);
+      prevent(e);
       this.navigate(1);
       break;
   }
 };
 
 /**
- * React to keyup event
+ * Add option
  */
 
-Combo.prototype.onkeyup = function () {
-  this.filter(this.input.value);
+Combo.prototype.add = function (value, text, selected) {
+  var el = document.createElement('li');
+  
+  el.className = 'option selectable';
+  el.setAttribute('data-value', value);
+  el.innerHTML = text;
+  
+  this.options[value] = el;
+  this.selectable.push(value.toString());
+  this.list.appendChild(el);
+  
+  if (!(this.placeholder || this.value) || selected) {
+    this.select(value);
+  }
+  
+  this.emit('add', value);
+  
+  return this;
 };
 
+/** 
+ * Remove option
+ */
+
+Combo.prototype.remove = function (value) {
+  var el = this.options[value];
+  this.list.removeChild(el);
+  delete this.options[value];
+  var i = indexOf(selectable, value.toString());
+  if (~i) this.selectable.splice(i, 1);
+  this.emit('remove', value);
+  return this;
+};
 
 /**
- * Move focus n positions up or down
+ * Move highlight `n` positions
  */
 
 Combo.prototype.navigate = function (n) {
   if (this.closed) return this.open();
   
   var selectable = this.selectable;
-  var i = indexOf(selectable, this.inFocus) + n;
+  var i = indexOf(selectable, this.highlighted) + n;
   
   if (selectable.length > i && i >= 0) {
     var value = selectable[i];
-    this.setFocus(value);
+    this.highlight(value);
   }
   
   return this;
@@ -246,7 +253,7 @@ Combo.prototype.navigate = function (n) {
  * Highlight option with the given value
  */
 
-Combo.prototype.setFocus = function (value) {
+Combo.prototype.highlight = function (value) {
   var focus = query('.focus', this.list);
   var option = this.options[value];
   
@@ -254,7 +261,7 @@ Combo.prototype.setFocus = function (value) {
   if (focus) classes(focus).remove('focus');
   classes(option).add('focus');
   
-  this.inFocus = '' + value;
+  this.highlighted = value.toString();
   this.scrollTo(value);
   
   return this.emit('focus', value);
@@ -273,7 +280,7 @@ Combo.prototype.select = function (value) {
   classes(option).add('selected');
   
   this.label.innerHTML = option.innerHTML;
-  this.value = '' + value;
+  this.value = value.toString();
   
   this.emit('select', value);
   return this.close();
@@ -313,22 +320,24 @@ Combo.prototype.reposition = function () {
   
   var wt = scrolltop();
   var wb = wt + window.innerHeight;
-  
   var lh = this.label.offsetHeight;
   var lt = offset(this.el);
-  
   var inner = query('.inner', this.el);
   var ih = inner.offsetHeight;
   
+  // south
   if (lt + lh + ih <= wb) {
     this.addClass('south');
     this.removeClass('north');  
-    return this.emit('position', 'south');
+    this.emit('position', 'south');
+    return this;
   }
   
+  // north
   this.addClass('north');
   this.removeClass('south');
-  return this.emit('position', 'north');
+  this.emit('position', 'north');
+  return this;
 };
 
 /**
@@ -350,29 +359,8 @@ Combo.prototype.filter = function (filter) {
     }
   }
   
-  this.hideEmpty();
-  this.refocus();
-  
-  return this.emit('filter', filter);
-};
-
-/**
- * Hide empty groups
- */
-
-Combo.prototype.hideEmpty = function () {
-  var groups = query.all('.group', this.list);
-  
-  for (var i = 0; i < groups.length; i++) {
-    var group = groups[i];
-    var options = query('.selectable', group);
-    
-    if (options) {
-      classes(group).remove('empty');
-    } else {    
-      classes(group).add('empty');
-    }
-  }
+  this.rehighlight();
+  this.emit('filter', filter);
   
   return this;
 };
@@ -381,16 +369,74 @@ Combo.prototype.hideEmpty = function () {
  * Refocus if the element in focus is unselectable
  */
 
-Combo.prototype.refocus = function () {
+Combo.prototype.rehighlight = function () {
   var selectable = this.selectable;
   
-  if (~indexOf(selectable, this.inFocus))
-    return this.scrollTo(this.inFocus);
+  // highlighted is selectable
+  if (~indexOf(selectable, this.highlighted)) {
+    return this.scrollTo(this.highlighted);
+  }
   
-  if (!selectable.length) 
-    return this.setFocus(null);
-    
-  return this.setFocus(selectable[0]);
+  // nothing is selectable
+  if (!selectable.length) {
+    return this.highlight(null);
+  }
+  
+  return this.highlight(selectable[0]);
+};
+
+/**
+ * Open combobox
+ */
+
+Combo.prototype.open = function () {
+  var self = this;
+  if (!this.closed) return this;
+  this.closed = false;
+  this.classes.add('open');
+  this.classes.remove('closed');
+  this.bindOutside();
+  this.highlight(this.value);
+  this.reposition();
+  this.emit('open');
+  
+  setTimeout(function () {
+    self.input.focus();
+  }, 50);
+  
+  return this;
+};
+
+/**
+ * Close combobox
+ */
+
+Combo.prototype.close = function () {
+  if (this.closed) return this;
+  
+  // don't close when click is inside
+  if (this.clicked) {
+    this.clicked = false;
+    return this;
+  }
+  
+  this.closed = true;
+  this.classes.add('closed');
+  this.classes.remove('open');
+  this.el.focus();
+  this.unbindOutside();
+  this.emit('close');
+  return this;
+};
+
+/**
+ * Toggle combobox visibility
+ */
+
+Combo.prototype.toggle = function () {
+  return this.closed
+    ? this.open()
+    : this.close();
 };
 
 /**
@@ -421,64 +467,6 @@ Combo.prototype.removeClass = function (name) {
 };
 
 /**
- * Open combobox
- */
-
-Combo.prototype.open = function () {
-  if (!this.closed) return this;
-  return this.toggle();
-};
-
-/**
- * Close combobox
- */
-
-Combo.prototype.close = function () {
-  if (this.closed) return this;
-  return this.toggle();
-};
-
-/**
- * Toggle combobox visibility
- */
-
-Combo.prototype.toggle = function () {
-  this.closed = !this.closed;
-  
-  this.classes.toggle('open');
-  this.classes.toggle('closed');
-    
-  if (this.closed) {
-    this.el.focus();
-    this.unbindOutside();
-    return this.emit('close');
-  }
-  
-  this.bindOutside();
-  this.setFocus(this.value);
-  this.reposition();
-  
-  var input = this.input;
-  tick(function () {
-    input.focus();
-  });
-
-  return this.emit('open');
-};
-
-/**
- * Create or return function bound to `this` with `_` as a prefix
- */
-
-function binding (obj) {
-  return function (name) {
-    var _name = '_' + name;
-    obj[_name] = obj[_name] || bind(obj, name);
-    return obj[_name];
-  }
-}
-
-/**
  * Get element offset
  */
 
@@ -492,32 +480,6 @@ function offset (el, to) {
   }
   
   return top;
-}
-
-/**
- * Prevent default
- */
-
-function preventDefault (e) {
-  if (e.preventDefault) return e.preventDefault();
-  e.returnValue = false;
-}
-
-/**
- * Stop event propagation
- */
-
-function stopPropagation (e) {
-  if (e.stopPropagation) return e.stopPropagation();
-  e.cancelBubble = true;
-}
-
-/**
- * Defer execution
- */
-
-function tick (callback) {
-  setTimeout(callback, 0);
 }
 
 module.exports = Combo;

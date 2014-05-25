@@ -2,32 +2,25 @@
   "name": "combobox",
   "repo": "eivindfjeldstad/combobox",
   "description": "Lightweight select box replacemet",
-  "version": "0.3.1",
-  "keywords": [
-    "select",
-    "combobox",
-    "option"
-  ],
+  "version": "1.0.0",
   "dependencies": {
     "component/emitter": "*",
     "component/domify": "*",
     "component/classes": "*",
     "component/query": "*",
-    "component/event": "*",
+    "component/events": "*",
     "component/indexof": "*",
-    "yields/scrolltop": "*",
     "component/keyname": "*",
-    "component/bind": "*"
+    "yields/scrolltop": "*",
+    "yields/prevent": "*",
+    "matthewp/text": "*"
   },
   "development": {},
   "license": "MIT",
+	"templates": ["template.html"],
   "scripts": [
     "index.js",
-    "templates/combo.js",
-    "templates/group.js",
-    "templates/option.js"
+    "template.js"
   ],
-  "styles": [
-    "combobox.css"
-  ]
+  "styles": ["index.css"]
 }

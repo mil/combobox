@@ -2,8 +2,8 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <link rel="stylesheet" href="build/build.css" type="text/css">
-  <script src="build/build.js"></script>
+  <link rel="stylesheet" href="../build/build.css" type="text/css">
+  <script src="../build/build.js"></script>
   <style>
     body {
       font-size: 16px;
@@ -60,21 +60,12 @@
       border-bottom-width: 0;
     }
     
-    .combobox .group-label {
-      font-weight: bold;
-      padding: 10px;
-    }
-    
     .combobox .list {
       max-height: 230px;
     }
     
     .combobox .option {
       padding: 10px;
-    }
-    
-    .combobox .group .option {
-      padding-left: 15px;
     }
     
     .combobox .option.focus {
@@ -84,23 +75,19 @@
 </head>
 <body>
   <script>
-    var Combo = require('combobox')
-    var combo = new Combo({
-        search      : true
-      , placeholder : 'Select something...'
-    });
+    var combo = require('combobox');
     
-    combo.group('Group 1')
-      .add(1, 'Option 1')
-      .add(2, 'Option 2')
-      .add(3, 'Option 3');
-      
-    combo.group('Group 2')
-      .add(4, 'Option 4')
-      .add(5, 'Option 5')
-      .add(6, 'Option 6');
-        
-    combo.appendTo(document.body);
+    combo({
+      search: true,
+      placeholder: 'Select something...'
+    })
+    .add(1, 'Option 1')
+    .add(2, 'Option 2')
+    .add(3, 'Option 3')
+    .add(4, 'Option 4')
+    .add(5, 'Option 5')
+    .add(6, 'Option 6')
+    .appendTo(document.body);
   </script>
 </body>
 </html>
