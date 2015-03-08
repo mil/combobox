@@ -18,9 +18,6 @@
   "development": {},
   "license": "MIT",
 	"templates": ["template.html"],
-  "scripts": [
-    "index.js",
-    "template.js"
-  ],
+  "scripts": [ "index.js" ],
   "styles": ["index.css"]
 }
